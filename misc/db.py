@@ -1,7 +1,6 @@
-import hashlib
-import secrets
 import sqlite3
 
+import bcrypt
 from fastapi import HTTPException, Request
 
 from .config import INIT_OWNER_PASSWORD
@@ -17,8 +16,7 @@ class _user_database:
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     username TEXT PRIMARY KEY,
-                    password_hash TEXT NOT NULL,
-                    salt TEXT NOT NULL
+                    password_hash TEXT NOT NULL
                 )
             """)
             self.conn.execute("""
@@ -30,22 +28,22 @@ class _user_database:
             """)
 
     def add_user(self, username, password):
-        salt = secrets.token_hex(8)
-        password_hash = hashlib.sha256((password + salt).encode()).hexdigest()
+        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
         with self.conn:
             self.conn.execute(
-                "INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)",
-                (username, password_hash, salt),
+                "INSERT INTO users (username, password_hash) VALUES (?, ?)",
+                (username, password_hash),
             )
 
     def get_user(self, username):
         with self.conn:
             return self.conn.execute(
-                "SELECT * FROM users WHERE username = ?", (username,)
+                "SELECT username, password_hash FROM users WHERE username = ?",
+                (username,),
             ).fetchone()
 
     def add_token(self, token, username):
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        token_hash = bcrypt.hashpw(token.encode("utf-8"), bcrypt.gensalt())
         with self.conn:
             self.conn.execute(
                 "INSERT INTO tokens (token_hash, username) VALUES (?, ?)",
@@ -53,17 +51,16 @@ class _user_database:
             )
 
     def get_username_by_token(self, token):
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
         with self.conn:
-            result = self.conn.execute(
-                "SELECT username FROM tokens WHERE token_hash = ?", (token_hash,)
-            ).fetchone()
+            cursor = self.conn.execute(
+                "SELECT username FROM tokens WHERE token_hash = ?", (token,)
+            )
+            result = cursor.fetchone()
             return result[0] if result else None
 
     def delete_token(self, token):
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
         with self.conn:
-            self.conn.execute("DELETE FROM tokens WHERE token_hash = ?", (token_hash,))
+            self.conn.execute("DELETE FROM tokens WHERE token_hash = ?", (token,))
 
     def delete_token_by_username(self, username):
         with self.conn:

@@ -1,6 +1,6 @@
-import hashlib
 import secrets
 
+import bcrypt
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 
@@ -16,9 +16,9 @@ async def login(username: str = Form(...), password: str = Form(...)):
         return JSONResponse(
             status_code=400, content={"error": "Incorrect username or password"}
         )
-    username, password_hash, salt = user
-    hashed_input_password = hashlib.sha256((password + salt).encode()).hexdigest()
-    if password_hash != hashed_input_password:
+    username, password_hash = user
+    
+    if not bcrypt.checkpw(password.encode('utf-8'), password_hash):
         return JSONResponse(
             status_code=400, content={"error": "Incorrect username or password"}
         )
@@ -26,7 +26,9 @@ async def login(username: str = Form(...), password: str = Form(...)):
     token = secrets.token_hex(16)
     user_db.add_token(token, username)
     response = RedirectResponse(url="/admin", status_code=302)
-    response.set_cookie(key="access_token", value=token, httponly=True)
+    response.set_cookie(
+        key="access_token", value=token, secure=True, httponly=True, samesite="strict"
+    )
     return response
 
 
