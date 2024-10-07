@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="/style/dark_theme.css">
+    <link rel="apple-touch-icon" sizes="180x180" href="/style/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/style/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/style/favicon-16x16.png">
+    <link rel="manifest" href="/style/site.webmanifest">
+</head>
+
+<body>
+    <div class="container center-text">
+        <h1>Welcome to the Admin Panel</h1>
+        <button id="logoutButton" class="btn">Logout</button>
+    </div>
+
+    <script>
+        document.getElementById('logoutButton').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/logout', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    window.location.href = '/';
+                } else {
+                    console.error('Failed to logout');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+
+</html>
