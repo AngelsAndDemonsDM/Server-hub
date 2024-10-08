@@ -15,9 +15,11 @@ if not user_db.get_user("owner"):
 
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
-    username = user_db.get_username_by_token(token)
-    if not token or not username:
-        raise HTTPException(
-            status_code=401, detail="Invalid authentication credentials"
-        )
-    return username
+    if not token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user = user_db.get_username_by_token(token)
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    return user
