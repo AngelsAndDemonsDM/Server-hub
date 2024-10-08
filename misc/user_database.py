@@ -1,12 +1,9 @@
 import sqlite3
 
 import bcrypt
-from fastapi import HTTPException, Request
-
-from .config import INIT_OWNER_PASSWORD
 
 
-class _user_database:
+class UserDatabase:
     def __init__(self, db_path="user.db"):
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.create_tables()
@@ -65,19 +62,3 @@ class _user_database:
     def delete_token_by_username(self, username):
         with self.conn:
             self.conn.execute("DELETE FROM tokens WHERE username = ?", (username,))
-
-
-async def get_current_user(request: Request):
-    token = request.cookies.get("access_token")
-    username = user_db.get_username_by_token(token)
-    if not token or not username:
-        raise HTTPException(
-            status_code=401, detail="Invalid authentication credentials"
-        )
-    return username
-
-
-user_db = _user_database()
-
-if not user_db.get_user("owner"):
-    user_db.add_user("owner", INIT_OWNER_PASSWORD)

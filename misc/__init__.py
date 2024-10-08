@@ -1,2 +1,23 @@
-from .config import HOST, PORT
-from .db import get_current_user, user_db
+from fastapi import HTTPException, Request
+
+from .config import (HOST, INIT_OWNER_PASSWORD, PORT,  # noqa: F401
+                     TIMEOUT_DURATION_MINUTES)
+from .server_database import ServerDatabase
+from .user_database import UserDatabase
+
+user_db = UserDatabase()
+server_db = ServerDatabase()
+server_db.TIMEOUT_DURATION_MINUTES = TIMEOUT_DURATION_MINUTES
+
+if not user_db.get_user("owner"):
+    user_db.add_user("owner", INIT_OWNER_PASSWORD)
+
+
+async def get_current_user(request: Request):
+    token = request.cookies.get("access_token")
+    username = user_db.get_username_by_token(token)
+    if not token or not username:
+        raise HTTPException(
+            status_code=401, detail="Invalid authentication credentials"
+        )
+    return username
