@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 
 from misc import HOST, PORT
-from routers import auth_router, html_response_router
+from routers import auth_router, html_response_router, servers_router
 
 app = FastAPI()
 
@@ -13,6 +13,7 @@ app.mount("/html", StaticFiles(directory="html"), name="html")
 
 app.include_router(auth_router)
 app.include_router(html_response_router)
+app.include_router(servers_router)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
