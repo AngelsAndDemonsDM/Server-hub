@@ -30,26 +30,54 @@ a:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+    padding: 10px 20px;
     background-color: #333;
+}
+
+.top-menu div {
+    display: flex;
+    align-items: center;
+    gap: 15px;
 }
 
 .top-menu select,
 .top-menu .btn,
 .top-menu input[type="text"] {
-    margin-left: 10px;
-    padding: 10px;
+    padding: 8px 12px;
     border-radius: 5px;
     border: none;
     background-color: #3b3b3b;
     color: #ffffff;
     transition: background-color 0.3s, border-color 0.3s;
+    box-sizing: border-box;
+    height: 40px;
+    vertical-align: middle;
+}
+
+.top-menu select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQiIGhlaWdodD0iMTQiIHZpZXdCb3g9IjAgMCAxNCAxNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEgNkw3IDExTDEzIDYiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
 }
 
 .top-menu select:hover,
 .top-menu input[type="text"]:hover {
     background-color: #444;
     border-color: #bb86fc;
+}
+
+.top-menu .btn {
+    background-color: #6200ea;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.top-menu .btn:hover {
+    background-color: #3700b3;
 }
 
 .server-details {
@@ -106,7 +134,6 @@ button:hover {
     top: 0;
     width: 100%;
     height: 100%;
-    overflow: auto;
     background-color: rgba(0, 0, 0, 0.5);
 }
 
@@ -129,7 +156,6 @@ button:hover {
 .close:hover,
 .close:focus {
     color: #fff;
-    text-decoration: none;
     cursor: pointer;
 }
 
@@ -149,37 +175,6 @@ button:hover {
     border-radius: 5px;
 }
 
-form {
-    background-color: #2a2a2a;
-    padding: 20px;
-    border-radius: 8px;
-    max-width: 400px;
-    margin: 30px auto;
-}
-
-label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-}
-
-input[type="text"],
-input[type="password"] {
-    width: calc(100% - 20px);
-    padding: 10px;
-    margin-bottom: 15px;
-    border: none;
-    border-radius: 5px;
-    background-color: #3b3b3b;
-    color: #ffffff;
-}
-
-input[type="text"]:focus,
-input[type="password"]:focus {
-    outline: none;
-    border: 2px solid #bb86fc;
-}
-
 .container {
     max-width: 800px;
     margin: 0 auto;
@@ -190,9 +185,16 @@ input[type="password"]:focus {
     text-align: center;
 }
 
-.footer {
-    text-align: center;
-    margin-top: 30px;
-    font-size: 0.9em;
-    color: #666666;
+.search-input {
+    margin-top: 20px;
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: none;
+    background-color: #3b3b3b;
+    color: #ffffff;
+    transition: background-color 0.3s, border-color 0.3s;
+    box-sizing: border-box;
+    height: 40px;
+    width: 100%;
+    max-width: 400px;
 }
