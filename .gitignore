@@ -22,4 +22,4 @@ venv.bak/
 
 # DB
 user.db
-server.db
+banlist.db
