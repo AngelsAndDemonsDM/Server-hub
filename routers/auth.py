@@ -17,8 +17,8 @@ async def login(username: str = Form(...), password: str = Form(...)):
             status_code=400, content={"error": "Incorrect username or password"}
         )
     username, password_hash = user
-    
-    if not bcrypt.checkpw(password.encode('utf-8'), password_hash):
+
+    if not bcrypt.checkpw(password.encode("utf-8"), password_hash):
         return JSONResponse(
             status_code=400, content={"error": "Incorrect username or password"}
         )
