@@ -49,11 +49,13 @@ class UserDatabase:
 
     def get_username_by_token(self, token):
         with self.conn:
-            cursor = self.conn.execute(
-                "SELECT username FROM tokens WHERE token_hash = ?", (token,)
-            )
-            result = cursor.fetchone()
-            return result[0] if result else None
+            cursor = self.conn.execute("SELECT username, token_hash FROM tokens")
+            for row in cursor.fetchall():
+                username, token_hash = row
+                if bcrypt.checkpw(token.encode("utf-8"), token_hash):
+                    return username
+            return None
+
 
     def delete_token(self, token):
         with self.conn:

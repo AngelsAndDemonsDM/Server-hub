@@ -15,14 +15,14 @@ class ServerDatabase:
         self._last_update: Dict[str, datetime] = {}
         self._ip_count: Dict[str, int] = {}
         self._ip_token: Dict[str, str] = {}
-        self._lock = threading.Lock()
         self._start_cleanup_thread()
 
     def _create_tables(self):
         self.conn.execute("""CREATE TABLE IF NOT EXISTS banned_ips (
                                 ip TEXT PRIMARY KEY,
                                 banned_at TIMESTAMP,
-                                ban_duration INTEGER
+                                ban_duration INTEGER,
+                                reason TEXT
                               )""")
         self.conn.commit()
 
@@ -45,16 +45,30 @@ class ServerDatabase:
 
         return False
 
-    def ban_ip(self, ip: str, duration: Optional[int] = None) -> None:
+    def ban_ip(
+        self,
+        ip: str,
+        duration: Optional[int] = None,
+        reason: Optional[str] = "No reason provided",
+    ) -> None:
         self.conn.execute(
-            "REPLACE INTO banned_ips (ip, banned_at, ban_duration) VALUES (?, ?, ?)",
-            (ip, datetime.now(timezone.utc).isoformat(), duration),
+            "REPLACE INTO banned_ips (ip, banned_at, ban_duration, reason) VALUES (?, ?, ?, ?)",
+            (ip, datetime.now(timezone.utc).isoformat(), duration, reason),
         )
         self.conn.commit()
 
     def unban_ip(self, ip: str) -> None:
         self.conn.execute("DELETE FROM banned_ips WHERE ip = ?", (ip,))
         self.conn.commit()
+
+    def get_ban_reason(self, ip: str) -> Optional[str]:
+        cursor = self.conn.execute("SELECT reason FROM banned_ips WHERE ip = ?", (ip,))
+        row = cursor.fetchone()
+        cursor.close()
+        if row:
+            return row[0]
+
+        return None
 
     def add_server(
         self,
@@ -67,38 +81,37 @@ class ServerDatabase:
         tags: Optional[List[str]] = None,
         additional_links: Optional[Dict[str, str]] = None,
     ) -> None:
-        with self._lock:
-            if self.is_ip_banned(ip):
-                raise ValueError(f"IP {ip} is banned from adding servers")
+        if self.is_ip_banned(ip):
+            reason = self.get_ban_reason(ip)
+            raise ValueError(f"IP {ip} is banned from adding servers. Reason: {reason}")
 
-            if self._ip_count.get(ip, 0) >= 3:
-                raise ValueError(f"IP {ip} has reached the limit of 3 servers")
+        if self._ip_count.get(ip, 0) >= 3:
+            raise ValueError(f"IP {ip} has reached the limit of 3 servers")
 
-            if name in self._servers:
-                raise ValueError(f"{name} already in server list")
+        if name in self._servers:
+            raise ValueError(f"{name} already in server list")
 
-            self._servers[name] = {
-                "ip": ip,
-                "port": port,
-                "max_players": max_players,
-                "cur_players": cur_players,
-                "desc": desc,
-                "tags": tags if tags else [],
-                "additional_links": additional_links if additional_links else {},
-            }
-            self._last_update[name] = datetime.now(timezone.utc)
-            self._ip_count[ip] = self._ip_count.get(ip, 0) + 1
+        self._servers[name] = {
+            "ip": ip,
+            "port": port,
+            "max_players": max_players,
+            "cur_players": cur_players,
+            "desc": desc,
+            "tags": tags if tags else [],
+            "additional_links": additional_links if additional_links else {},
+        }
+        self._last_update[name] = datetime.now(timezone.utc)
+        self._ip_count[ip] = self._ip_count.get(ip, 0) + 1
 
     def remove_server(self, name: str) -> None:
-        with self._lock:
-            if name not in self._servers:
-                raise ValueError(f"{name} not found in server list")
-            ip = self._servers[name]["ip"]
-            del self._servers[name]
-            del self._last_update[name]
-            self._ip_count[ip] -= 1
-            if self._ip_count[ip] == 0:
-                del self._ip_count[ip]
+        if name not in self._servers:
+            raise ValueError(f"{name} not found in server list")
+        ip = self._servers[name]["ip"]
+        del self._servers[name]
+        del self._last_update[name]
+        self._ip_count[ip] -= 1
+        if self._ip_count[ip] == 0:
+            del self._ip_count[ip]
 
     def update_server(
         self,
@@ -111,55 +124,51 @@ class ServerDatabase:
         tags: Optional[List[str]] = None,
         additional_links: Optional[Dict[str, str]] = None,
     ) -> None:
-        with self._lock:
-            if name not in self._servers:
-                raise ValueError(f"{name} not found in server list")
+        if name not in self._servers:
+            raise ValueError(f"{name} not found in server list")
 
-            server = self._servers[name]
+        server = self._servers[name]
 
-            if ip is not None:
-                server["ip"] = ip
-            if port is not None:
-                server["port"] = port
-            if max_players is not None:
-                server["max_players"] = max_players
-            if cur_players is not None:
-                server["cur_players"] = cur_players
-            if desc is not None:
-                server["desc"] = desc
-            if tags is not None:
-                server["tags"] = tags
-            if additional_links is not None:
-                server["additional_links"] = additional_links
+        if ip is not None:
+            server["ip"] = ip
+        if port is not None:
+            server["port"] = port
+        if max_players is not None:
+            server["max_players"] = max_players
+        if cur_players is not None:
+            server["cur_players"] = cur_players
+        if desc is not None:
+            server["desc"] = desc
+        if tags is not None:
+            server["tags"] = tags
+        if additional_links is not None:
+            server["additional_links"] = additional_links
 
-            self._last_update[name] = datetime.now(timezone.utc)
+        self._last_update[name] = datetime.now(timezone.utc)
 
     def get_server(self, name: str) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            return self._servers.get(name, None)
+        return self._servers.get(name, None)
 
     def list_servers(self) -> List[Dict[str, Any]]:
-        with self._lock:
-            return [
-                {"name": name, **data}
-                for name, data in sorted(
-                    self._servers.items(),
-                    key=lambda x: x[1]["cur_players"],
-                    reverse=True,
-                )
-            ]
+        return [
+            {"name": name, **data}
+            for name, data in sorted(
+                self._servers.items(),
+                key=lambda x: x[1]["cur_players"],
+                reverse=True,
+            )
+        ]
 
     def remove_inactive_servers(self) -> None:
-        with self._lock:
-            now = datetime.now(timezone.utc)
-            inactive_servers = [
-                name
-                for name, last_update in self._last_update.items()
-                if now - last_update > timedelta(minutes=self.TIMEOUT_DURATION_MINUTES)
-            ]
-            for name in inactive_servers:
-                del self._servers[name]
-                del self._last_update[name]
+        now = datetime.now(timezone.utc)
+        inactive_servers = [
+            name
+            for name, last_update in self._last_update.items()
+            if now - last_update > timedelta(minutes=self.TIMEOUT_DURATION_MINUTES)
+        ]
+        for name in inactive_servers:
+            del self._servers[name]
+            del self._last_update[name]
 
     def _start_cleanup_thread(self) -> None:
         cleanup_thread = threading.Thread(
@@ -174,14 +183,11 @@ class ServerDatabase:
 
     # Token management methods for admin use
     def set_ip_token(self, ip: str, token: str) -> None:
-        with self._lock:
-            self._ip_token[ip] = token
+        self._ip_token[ip] = token
 
     def get_ip_token(self, ip: str) -> Optional[str]:
-        with self._lock:
-            return self._ip_token.get(ip)
+        return self._ip_token.get(ip)
 
     def remove_ip_token(self, ip: str) -> None:
-        with self._lock:
-            if ip in self._ip_token:
-                del self._ip_token[ip]
+        if ip in self._ip_token:
+            del self._ip_token[ip]
