@@ -41,6 +41,12 @@ class AdminUpdateServerModel(BaseModel):
     additional_links: Optional[dict] = None
 
 
+# Получение списка серверов
+@servers_router.get("/servers/all/", summary="Get all servers", tags=["Hub api"])
+async def list_servers() -> List[Dict[str, Any]]:
+    return server_db.list_servers()
+
+
 # Добавление сервера
 @servers_router.post("/servers/add", summary="Add server to hub", tags=["Hub api"])
 async def add_server(server: ServerModel) -> Dict[str, str]:
@@ -58,13 +64,15 @@ async def add_server(server: ServerModel) -> Dict[str, str]:
         )
         server_db.set_ip_token(server.ip, token)
         return {"message": "Server added successfully", "token": token}
-    
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 # Получение информации о сервере
-@servers_router.get("/servers/{name}", summary="Get server by server name", tags=["Hub api"])
+@servers_router.get(
+    "/servers/{name}", summary="Get server by server name", tags=["Hub api"]
+)
 async def get_server(name: str) -> Dict[str, Any]:
     server = server_db.get_server(name)
     if server is None:
@@ -73,8 +81,30 @@ async def get_server(name: str) -> Dict[str, Any]:
     return server
 
 
+# Удаление сервера самим сервером
+@servers_router.delete(
+    "/servers/{name}/delete", summary="Delete server", tags=["Hub api"]
+)
+async def delete_server(name: str, token: str) -> Dict[str, str]:
+    try:
+        existing_server = server_db.get_server(name)
+        if existing_server is None:
+            raise HTTPException(status_code=404, detail="Server not found")
+
+        if token != server_db.get_ip_token(existing_server["ip"]):
+            raise HTTPException(status_code=403, detail="Invalid token")
+
+        server_db.remove_server(name=name)
+        return {"message": "Server delete successfully"}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # Обновление информации о сервере
-@servers_router.put("/servers/{name}/update", summary="Update server info", tags=["Hub api"])
+@servers_router.put(
+    "/servers/{name}/update", summary="Update server info", tags=["Hub api"]
+)
 async def update_server(name: str, server: UpdateServerModel) -> Dict[str, str]:
     try:
         existing_server = server_db.get_server(name)
@@ -98,12 +128,6 @@ async def update_server(name: str, server: UpdateServerModel) -> Dict[str, str]:
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-# Получение списка серверов
-@servers_router.get("/servers/all/", summary="Get all servers", tags=["Hub api"])
-async def list_servers() -> List[Dict[str, Any]]:
-    return server_db.list_servers()
 
 
 # Для администраторов
