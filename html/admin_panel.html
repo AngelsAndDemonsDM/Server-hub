@@ -235,13 +235,20 @@
 
         function openBanModal(ip) {
             modalBody.innerHTML = `
-                <p>${translations[getCurrentLanguage()].enterBanReason}</p>
+                <p>Enter ban reason:</p>
                 <textarea id="banReason"></textarea>
-                <button class="btn" onclick="banIP('${ip}', document.getElementById('banReason').value)">Ban</button>
+
+                <p>Select ban duration:</p>
+                <input type="date" id="banDate">
+                <p>Or enter "0" for a permanent ban:</p>
+                <input type="number" id="banDuration" placeholder="Enter 0 for permanent" min="0">
+
+                <button class="btn" onclick="banIP('${ip}', document.getElementById('banReason').value, document.getElementById('banDate').value, document.getElementById('banDuration').value)">Ban</button>
                 <button class="btn" onclick="modal.style.display='none';">Cancel</button>
             `;
             modal.style.display = "block";
         }
+
 
         function openUpdateServerModal(name, ip, port, maxPlayers, curPlayers, desc, tags) {
             modalBody.innerHTML = `
@@ -269,7 +276,7 @@
             };
 
             try {
-                const response = await fetch(`/servers/admin/${name}/update`, {
+                const response = await fetch(`/servers/admin/${name}/update/`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json'
@@ -316,11 +323,51 @@
             modal.style.display = "block";
         });
 
+        async function banIP(ip, reason, date, duration) {
+            let banDuration = null;
+
+            if (duration === '0') {
+                banDuration = null; // Permanent ban
+            } else if (date) {
+                const selectedDate = new Date(date);
+                const currentDate = new Date();
+                const timeDiff = Math.floor((selectedDate - currentDate) / 1000);
+
+                if (timeDiff > 0) {
+                    banDuration = timeDiff;
+                } else {
+                    alert("Please select a future date for the ban.");
+                    return;
+                }
+            }
+
+            try {
+                const response = await fetch('/servers/admin/ban_ip/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip, reason, duration: banDuration }),
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    alert('IP banned successfully');
+                    modal.style.display = 'none';
+                    fetchServers();
+                } else {
+                    console.error('Failed to ban IP');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+
         async function unbanIP() {
             const ip = document.getElementById('unbanIp').value;
             if (ip) {
                 try {
-                    const response = await fetch('/servers/admin/unban_ip', {
+                    const response = await fetch('/servers/admin/unban_ip/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
