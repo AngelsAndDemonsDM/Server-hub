@@ -13,5 +13,3 @@ with open("config.json", "r") as file:
 USE_HTTPS = _config.get("use_https", True)
 MAX_SERVERS_PER_IP = _config.get("max_servers_per_ip", 3)
 TIMEOUT_DURATION_MINUTES = _config.get("timeout_duration_minutes", 5)
-HOST = _config.get("host", "0.0.0.0")
-PORT = _config.get("port", 8000)
