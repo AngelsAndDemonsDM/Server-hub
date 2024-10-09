@@ -47,7 +47,7 @@ async def list_servers() -> List[Dict[str, Any]]:
 
 
 # Добавление сервера
-@servers_router.post("/servers/add", summary="Add server to hub", tags=["Hub api"])
+@servers_router.post("/servers/add/", summary="Add server to hub", tags=["Hub api"])
 async def add_server(server: ServerModel) -> Dict[str, str]:
     try:
         token = secrets.token_hex(16)
@@ -70,7 +70,7 @@ async def add_server(server: ServerModel) -> Dict[str, str]:
 
 # Получение информации о сервере
 @servers_router.get(
-    "/servers/{name}", summary="Get server by server name", tags=["Hub api"]
+    "/servers/{name}/", summary="Get server by server name", tags=["Hub api"]
 )
 async def get_server(name: str) -> Dict[str, Any]:
     server = server_db.get_server(name)
@@ -82,7 +82,7 @@ async def get_server(name: str) -> Dict[str, Any]:
 
 # Удаление сервера самим сервером
 @servers_router.delete(
-    "/servers/{name}/delete", summary="Delete server", tags=["Hub api"]
+    "/servers/{name}/delete/", summary="Delete server", tags=["Hub api"]
 )
 async def delete_server(name: str, authorization: str = Header(None)) -> Dict[str, str]:
     try:
@@ -110,7 +110,7 @@ async def delete_server(name: str, authorization: str = Header(None)) -> Dict[st
 
 # Обновление информации о сервере
 @servers_router.put(
-    "/servers/{name}/update", summary="Update server info", tags=["Hub api"]
+    "/servers/{name}/update/", summary="Update server info", tags=["Hub api"]
 )
 async def update_server(
     name: str, server: UpdateServerModel, authorization: str = Header(None)
@@ -149,7 +149,7 @@ async def update_server(
 
 # Для администраторов
 # Обновление информации о сервере
-@servers_router.put("/servers/admin/{name}/update", include_in_schema=False)
+@servers_router.put("/servers/admin/{name}/update/", include_in_schema=False)
 async def admin_update_server(
     name: str,
     server: AdminUpdateServerModel,
@@ -172,7 +172,7 @@ async def admin_update_server(
 
 
 # Удаление сервера
-@servers_router.delete("/servers/admin/{name}/remove", include_in_schema=False)
+@servers_router.delete("/servers/admin/{name}/remove/", include_in_schema=False)
 async def remove_server(name: str, current_user: str = Depends(get_current_user)):
     try:
         server_db.remove_server(name)
@@ -183,7 +183,7 @@ async def remove_server(name: str, current_user: str = Depends(get_current_user)
 
 
 # Забанить IP-адрес
-@servers_router.post("/servers/admin/ban_ip", include_in_schema=False)
+@servers_router.post("/servers/admin/ban_ip/", include_in_schema=False)
 async def ban_ip(
     ip: str,
     duration: Optional[int] = None,
@@ -195,7 +195,7 @@ async def ban_ip(
 
 
 # Разбанить IP-адрес
-@servers_router.post("/servers/admin/unban_ip", include_in_schema=False)
+@servers_router.post("/servers/admin/unban_ip/", include_in_schema=False)
 async def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
     server_db.unban_ip(ip)
     return {"message": "IP unbanned successfully"}
