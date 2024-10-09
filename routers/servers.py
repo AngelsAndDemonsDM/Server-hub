@@ -1,7 +1,7 @@
 import secrets
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
 
 from misc import get_current_user, server_db
@@ -21,7 +21,6 @@ class ServerModel(BaseModel):
 
 
 class UpdateServerModel(BaseModel):
-    token: str
     ip: Optional[str] = None
     port: Optional[str] = None
     max_players: Optional[int] = None
@@ -85,11 +84,19 @@ async def get_server(name: str) -> Dict[str, Any]:
 @servers_router.delete(
     "/servers/{name}/delete", summary="Delete server", tags=["Hub api"]
 )
-async def delete_server(name: str, token: str) -> Dict[str, str]:
+async def delete_server(name: str, authorization: str = Header(None)) -> Dict[str, str]:
     try:
         existing_server = server_db.get_server(name)
         if existing_server is None:
             raise HTTPException(status_code=404, detail="Server not found")
+
+        if authorization is None or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=403,
+                detail="Authorization header missing or incorrect format",
+            )
+
+        token = authorization.split(" ")[1]
 
         if token != server_db.get_ip_token(existing_server["ip"]):
             raise HTTPException(status_code=403, detail="Invalid token")
@@ -105,13 +112,23 @@ async def delete_server(name: str, token: str) -> Dict[str, str]:
 @servers_router.put(
     "/servers/{name}/update", summary="Update server info", tags=["Hub api"]
 )
-async def update_server(name: str, server: UpdateServerModel) -> Dict[str, str]:
+async def update_server(
+    name: str, server: UpdateServerModel, authorization: str = Header(None)
+) -> Dict[str, str]:
     try:
         existing_server = server_db.get_server(name)
         if existing_server is None:
             raise HTTPException(status_code=404, detail="Server not found")
 
-        if server.token != server_db.get_ip_token(existing_server["ip"]):
+        if authorization is None or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=403,
+                detail="Authorization header missing or incorrect format",
+            )
+
+        token = authorization.split(" ")[1]
+
+        if token != server_db.get_ip_token(existing_server["ip"]):
             raise HTTPException(status_code=403, detail="Invalid token")
 
         server_db.update_server(
