@@ -1,7 +1,7 @@
 from fastapi import HTTPException, Request
 
 from .config import (HOST, INIT_OWNER_PASSWORD, PORT,  # noqa: F401
-                     TIMEOUT_DURATION_MINUTES)
+                     TIMEOUT_DURATION_MINUTES, USE_HTTPS)
 from .server_database import ServerDatabase
 from .user_database import UserDatabase
 

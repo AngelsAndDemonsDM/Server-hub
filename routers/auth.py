@@ -4,7 +4,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from misc import get_current_user, user_db
+from misc import USE_HTTPS, get_current_user, user_db
 
 auth_router = APIRouter()
 
@@ -27,7 +27,11 @@ async def login(username: str = Form(...), password: str = Form(...)):
     user_db.add_token(token, username)
     response = RedirectResponse(url="/admin", status_code=302)
     response.set_cookie(
-        key="access_token", value=token, secure=True, httponly=True, samesite="strict"
+        key="access_token",
+        value=token,
+        secure=USE_HTTPS,
+        httponly=True,
+        samesite="strict",
     )
     return response
 
