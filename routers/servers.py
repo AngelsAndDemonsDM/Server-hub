@@ -1,5 +1,5 @@
 import secrets
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -42,8 +42,8 @@ class AdminUpdateServerModel(BaseModel):
 
 
 # Добавление сервера
-@servers_router.post("/servers/add")
-async def add_server(server: ServerModel):
+@servers_router.post("/servers/add", summary="Add server to hub", tags=["Hub api"])
+async def add_server(server: ServerModel) -> Dict[str, str]:
     try:
         token = secrets.token_hex(16)
         server_db.add_server(
@@ -58,13 +58,14 @@ async def add_server(server: ServerModel):
         )
         server_db.set_ip_token(server.ip, token)
         return {"message": "Server added successfully", "token": token}
+    
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 # Получение информации о сервере
-@servers_router.get("/servers/{name}")
-async def get_server(name: str):
+@servers_router.get("/servers/{name}", summary="Get server by server name", tags=["Hub api"])
+async def get_server(name: str) -> Dict[str, Any]:
     server = server_db.get_server(name)
     if server is None:
         raise HTTPException(status_code=404, detail="Server not found")
@@ -73,8 +74,8 @@ async def get_server(name: str):
 
 
 # Обновление информации о сервере
-@servers_router.put("/servers/{name}/update")
-async def update_server(name: str, server: UpdateServerModel):
+@servers_router.put("/servers/{name}/update", summary="Update server info", tags=["Hub api"])
+async def update_server(name: str, server: UpdateServerModel) -> Dict[str, str]:
     try:
         existing_server = server_db.get_server(name)
         if existing_server is None:
@@ -100,13 +101,14 @@ async def update_server(name: str, server: UpdateServerModel):
 
 
 # Получение списка серверов
-@servers_router.get("/servers/all/")
-async def list_servers():
+@servers_router.get("/servers/all/", summary="Get all servers", tags=["Hub api"])
+async def list_servers() -> List[Dict[str, Any]]:
     return server_db.list_servers()
+
 
 # Для администраторов
 # Обновление информации о сервере
-@servers_router.put("/servers/admin/{name}/update")
+@servers_router.put("/servers/admin/{name}/update", include_in_schema=False)
 async def admin_update_server(
     name: str,
     server: AdminUpdateServerModel,
@@ -129,7 +131,7 @@ async def admin_update_server(
 
 
 # Удаление сервера
-@servers_router.delete("/servers/admin/{name}/remove")
+@servers_router.delete("/servers/admin/{name}/remove", include_in_schema=False)
 async def remove_server(name: str, current_user: str = Depends(get_current_user)):
     try:
         server_db.remove_server(name)
@@ -140,7 +142,7 @@ async def remove_server(name: str, current_user: str = Depends(get_current_user)
 
 
 # Забанить IP-адрес
-@servers_router.post("/servers/admin/ban_ip")
+@servers_router.post("/servers/admin/ban_ip", include_in_schema=False)
 async def ban_ip(
     ip: str,
     duration: Optional[int] = None,
@@ -152,7 +154,7 @@ async def ban_ip(
 
 
 # Разбанить IP-адрес
-@servers_router.post("/servers/admin/unban_ip")
+@servers_router.post("/servers/admin/unban_ip", include_in_schema=False)
 async def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
     server_db.unban_ip(ip)
     return {"message": "IP unbanned successfully"}

@@ -7,8 +7,11 @@ load_dotenv()
 
 INIT_OWNER_PASSWORD = os.getenv("INIT_OWNER_PASSWORD", "owner")
 
-with open("config.json", "r") as file:
-    _config = json.load(file)
+try:
+    with open("config.json", "r", encoding="utf-8") as file:
+        _config = json.load(file)
+except Exception:
+    _config = {}
 
 USE_HTTPS = _config.get("use_https", True)
 MAX_SERVERS_PER_IP = _config.get("max_servers_per_ip", 3)

@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from routers import auth_router, html_response_router, servers_router
 
-app = FastAPI()
+app = FastAPI(title="Server hub", description="", version="0.0.1")
 
 app.mount("/style", StaticFiles(directory="style"), name="style")
 app.mount("/html", StaticFiles(directory="html"), name="html")

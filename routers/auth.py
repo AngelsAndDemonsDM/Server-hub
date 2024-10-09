@@ -9,7 +9,7 @@ from misc import USE_HTTPS, get_current_user, user_db
 auth_router = APIRouter()
 
 
-@auth_router.post("/login")
+@auth_router.post("/login", include_in_schema=False)
 async def login(username: str = Form(...), password: str = Form(...)):
     user = user_db.get_user(username)
     if not user:
@@ -36,7 +36,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
     return response
 
 
-@auth_router.get("/logout")
+@auth_router.get("/logout", include_in_schema=False)
 async def logout(current_user: str = Depends(get_current_user)):
     user_db.delete_token_by_username(current_user)
 
