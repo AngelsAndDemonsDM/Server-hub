@@ -113,7 +113,7 @@ class ServerDatabase:
         if self._ip_count[ip] == 0:
             del self._ip_count[ip]
 
-    def update_server(
+    def update_server( #TODO ip check
         self,
         name: str,
         ip: Optional[str] = None,
