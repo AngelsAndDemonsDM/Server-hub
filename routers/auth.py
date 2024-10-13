@@ -4,7 +4,7 @@ import bcrypt
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from misc import USE_HTTPS, get_current_user, user_db
+from misc import USE_HTTPS, get_current_user
 
 auth_router = APIRouter()
 

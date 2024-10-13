@@ -1,193 +1,281 @@
-import sqlite3
-import threading
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+import ipaddress
+import json
+from datetime import datetime, timedelta
+from typing import Optional
+
+import aiosqlite
 
 
-class ServerDatabase:
-    TIMEOUT_DURATION_MINUTES = 5
+class Database:
+    db_path = "servers.db"
 
-    def __init__(self, db_path="banlist.db"):
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._create_tables()
+    @classmethod
+    async def init_db(cls):
+        async with aiosqlite.connect(cls.db_path) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS domains (
+                    domain_name TEXT PRIMARY KEY,
+                    ip_address TEXT NOT NULL,
+                    port INTEGER NOT NULL,
+                    created_by TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
 
-        self._servers: Dict[str, Dict[str, Any]] = {}
-        self._last_update: Dict[str, datetime] = {}
-        self._ip_count: Dict[str, int] = {}
-        self._ip_token: Dict[str, str] = {}
-        self._start_cleanup_thread()
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS blocks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    domain_name TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    blocked_by TEXT NOT NULL,
+                    blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    duration INTEGER,
+                    active BOOLEAN DEFAULT TRUE,
+                    manually_unblocked BOOLEAN DEFAULT FALSE,
+                    FOREIGN KEY (domain_name) REFERENCES domains(domain_name) ON DELETE CASCADE
+                );
+            """)
 
-    def _create_tables(self):
-        self.conn.execute("""CREATE TABLE IF NOT EXISTS banned_ips (
-                                ip TEXT PRIMARY KEY,
-                                banned_at TIMESTAMP,
-                                ban_duration INTEGER,
-                                reason TEXT
-                              )""")
-        self.conn.commit()
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS server_info (
+                    domain_name TEXT PRIMARY KEY,
+                    server_name TEXT NOT NULL,
+                    description TEXT,
+                    tags TEXT,
+                    additional_links TEXT,
+                    FOREIGN KEY (domain_name) REFERENCES domains(domain_name) ON DELETE CASCADE
+                );
+            """)
 
-    def is_ip_banned(self, ip: str) -> bool:
-        cursor = self.conn.execute(
-            "SELECT banned_at, ban_duration FROM banned_ips WHERE ip = ?", (ip,)
-        )
-        row = cursor.fetchone()
-        cursor.close()
-        if row:
-            banned_at, ban_duration = row
-            if ban_duration is None:
-                return True  # Permanent ban
-            if datetime.now(timezone.utc) < datetime.fromisoformat(
-                banned_at
-            ) + timedelta(seconds=ban_duration):
-                return True
-            else:
-                self.unban_ip(ip)  # Remove expired ban
+            await db.commit()
 
-        return False
+    @classmethod
+    async def domain_name_exists(cls, domain_name: str) -> bool:
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT 1 FROM domains WHERE domain_name = ?;
+            """,
+                (domain_name,),
+            ) as cursor:
+                return await cursor.fetchone() is not None
 
-    def ban_ip(
-        self,
-        ip: str,
-        duration: Optional[int] = None,
-        reason: Optional[str] = "No reason provided",
-    ) -> None:
-        self.conn.execute(
-            "REPLACE INTO banned_ips (ip, banned_at, ban_duration, reason) VALUES (?, ?, ?, ?)",
-            (ip, datetime.now(timezone.utc).isoformat(), duration, reason),
-        )
-        self.conn.commit()
+    @classmethod
+    async def ip_and_port_exists(cls, ip_address: str, port: int) -> bool:
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT 1 FROM domains WHERE ip_address = ? AND port = ?;
+            """,
+                (ip_address, port),
+            ) as cursor:
+                return await cursor.fetchone() is not None
 
-    def unban_ip(self, ip: str) -> None:
-        self.conn.execute("DELETE FROM banned_ips WHERE ip = ?", (ip,))
-        self.conn.commit()
+    @classmethod
+    async def add_domain(
+        cls,
+        domain_name: str,
+        ip_address: str,
+        port: int,
+        created_by: str,
+        description: Optional[str] = None,
+    ):
+        try:
+            ip = ipaddress.ip_address(ip_address)
+            if isinstance(ip, ipaddress.IPv6Address):
+                raise ValueError("IPv6 addresses are not allowed.")
 
-    def get_ban_reason(self, ip: str) -> Optional[str]:
-        cursor = self.conn.execute("SELECT reason FROM banned_ips WHERE ip = ?", (ip,))
-        row = cursor.fetchone()
-        cursor.close()
-        if row:
-            return row[0]
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {ip_address}")
 
-        return None
-
-    def add_server(
-        self,
-        ip: str,
-        port: str,
-        name: str,
-        max_players: int,
-        cur_players: int,
-        desc: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        additional_links: Optional[Dict[str, str]] = None,
-    ) -> None:
-        if self.is_ip_banned(ip):
-            reason = self.get_ban_reason(ip)
-            raise ValueError(f"IP {ip} is banned from adding servers. Reason: {reason}")
-
-        if self._ip_count.get(ip, 0) >= 3:
-            raise ValueError(f"IP {ip} has reached the limit of 3 servers")
-
-        if name in self._servers:
-            raise ValueError(f"{name} already in server list")
-
-        self._servers[name] = {
-            "ip": ip,
-            "port": port,
-            "max_players": max_players,
-            "cur_players": cur_players,
-            "desc": desc,
-            "tags": tags if tags else [],
-            "additional_links": additional_links if additional_links else {},
-        }
-        self._last_update[name] = datetime.now(timezone.utc)
-        self._ip_count[ip] = self._ip_count.get(ip, 0) + 1
-
-    def remove_server(self, name: str) -> None:
-        if name not in self._servers:
-            raise ValueError(f"{name} not found in server list")
-        ip = self._servers[name]["ip"]
-        del self._servers[name]
-        del self._last_update[name]
-        self._ip_count[ip] -= 1
-        if self._ip_count[ip] == 0:
-            del self._ip_count[ip]
-
-    def update_server(
-        self,
-        name: str,
-        ip: Optional[str] = None,
-        port: Optional[str] = None,
-        max_players: Optional[int] = None,
-        cur_players: Optional[int] = None,
-        desc: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-        additional_links: Optional[Dict[str, str]] = None,
-    ) -> None:
-        if name not in self._servers:
-            raise ValueError(f"{name} not found in server list")
-
-        server = self._servers[name]
-
-        if ip is not None:
-            server["ip"] = ip
-        if port is not None:
-            server["port"] = port
-        if max_players is not None:
-            server["max_players"] = max_players
-        if cur_players is not None:
-            server["cur_players"] = cur_players
-        if desc is not None:
-            server["desc"] = desc
-        if tags is not None:
-            server["tags"] = tags
-        if additional_links is not None:
-            server["additional_links"] = additional_links
-
-        self._last_update[name] = datetime.now(timezone.utc)
-
-    def get_server(self, name: str) -> Optional[Dict[str, Any]]:
-        return self._servers.get(name, None)
-
-    def list_servers(self) -> List[Dict[str, Any]]:
-        return [
-            {"name": name, **data}
-            for name, data in sorted(
-                self._servers.items(),
-                key=lambda x: x[1]["cur_players"],
-                reverse=True,
+        if not (0 <= port <= 65535):
+            raise ValueError(
+                f"Invalid port number: {port}. It must be between 0 and 65535."
             )
-        ]
 
-    def remove_inactive_servers(self) -> None:
-        now = datetime.now(timezone.utc)
-        inactive_servers = [
-            name
-            for name, last_update in self._last_update.items()
-            if now - last_update > timedelta(minutes=self.TIMEOUT_DURATION_MINUTES)
-        ]
-        for name in inactive_servers:
-            del self._servers[name]
-            del self._last_update[name]
+        if await cls.domain_name_exists(domain_name):
+            raise ValueError(f"Domain name {domain_name} already exists.")
 
-    def _start_cleanup_thread(self) -> None:
-        cleanup_thread = threading.Thread(
-            target=self._cleanup_inactive_servers, daemon=True
+        if await cls.ip_and_port_exists(ip_address, port):
+            raise ValueError(
+                f"IP address {ip_address} with port {port} already exists."
+            )
+
+        async with aiosqlite.connect(cls.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO domains (domain_name, ip_address, port, created_by, description)
+                VALUES (?, ?, ?, ?, ?);
+            """,
+                (domain_name, ip_address, port, created_by, description),
+            )
+            await db.commit()
+
+    @classmethod
+    async def delete_domain(cls, domain_name: str):
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                "SELECT 1 FROM domains WHERE domain_name = ?;", (domain_name,)
+            ) as cursor:
+                domain = await cursor.fetchone()
+
+                if domain is None:
+                    raise ValueError(f"Domain {domain_name} not found.")
+
+            await db.execute(
+                "DELETE FROM domains WHERE domain_name = ?;", (domain_name,)
+            )
+            await db.commit()
+
+    @classmethod
+    async def is_block_exists(cls, domain_name: str) -> bool:
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT 1 FROM blocks WHERE domain_name = ? AND active = TRUE;
+            """,
+                (domain_name,),
+            ) as cursor:
+                return await cursor.fetchone() is not None
+
+    @classmethod
+    async def add_block(
+        cls,
+        domain_name: str,
+        reason: str,
+        blocked_by: str,
+        duration: Optional[int] = None,
+    ):
+        if await cls.is_block_exists(domain_name):
+            raise ValueError(f"Domain {domain_name} is already blocked.")
+
+        async with aiosqlite.connect(cls.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO blocks (domain_name, reason, blocked_by, duration)
+                VALUES (?, ?, ?, ?);
+            """,
+                (domain_name, reason, blocked_by, duration),
+            )
+            await db.commit()
+
+    @classmethod
+    async def remove_block(cls, domain_name: str, removed_by: str):
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT active FROM blocks WHERE domain_name = ? AND active = TRUE;
+                """,
+                (domain_name,),
+            ) as cursor:
+                block = await cursor.fetchone()
+
+                if block is None:
+                    raise ValueError(f"No active block found for domain {domain_name}")
+
+            await db.execute(
+                """
+                UPDATE blocks 
+                SET active = FALSE, manually_unblocked = TRUE
+                WHERE domain_name = ? AND active = TRUE;
+                """,
+                (domain_name,),
+            )
+            await db.commit()
+
+    @classmethod
+    async def add_server_info(
+        cls,
+        domain_name: str,
+        server_name: str,
+        description: Optional[str] = None,
+        tags: Optional[list] = None,
+        additional_links: Optional[dict] = None,
+    ):
+        tags_str = ",".join(tags) if tags else None
+        additional_links_str = (
+            json.dumps(additional_links) if additional_links else None
         )
-        cleanup_thread.start()
 
-    def _cleanup_inactive_servers(self) -> None:
-        while True:
-            self.remove_inactive_servers()
-            threading.Event().wait(60)
+        async with aiosqlite.connect(cls.db_path) as db:
+            await db.execute(
+                """
+                INSERT INTO server_info (domain_name, server_name, description, tags, additional_links)
+                VALUES (?, ?, ?, ?, ?);
+            """,
+                (domain_name, server_name, description, tags_str, additional_links_str),
+            )
+            await db.commit()
 
-    # Token management methods for admin use
-    def set_ip_token(self, ip: str, token: str) -> None:
-        self._ip_token[ip] = token
+    @classmethod
+    async def get_server_info(cls, domain_name: str):
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT server_name, description, tags, additional_links FROM server_info
+                WHERE domain_name = ?;
+            """,
+                (domain_name,),
+            ) as cursor:
+                server_info = await cursor.fetchone()
 
-    def get_ip_token(self, ip: str) -> Optional[str]:
-        return self._ip_token.get(ip)
+                if server_info:
+                    server_name, description, tags_str, additional_links_str = (
+                        server_info
+                    )
+                    tags = tags_str.split(",") if tags_str else []
+                    additional_links = (
+                        json.loads(additional_links_str) if additional_links_str else {}
+                    )
+                    return server_name, description, tags, additional_links
 
-    def remove_ip_token(self, ip: str) -> None:
-        if ip in self._ip_token:
-            del self._ip_token[ip]
+                return None
+
+    @classmethod
+    async def is_domain_blocked(cls, domain_name: str) -> bool:
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                """
+                SELECT active, blocked_at, duration, manually_unblocked 
+                FROM blocks
+                WHERE domain_name = ? AND active = TRUE;
+                """,
+                (domain_name,),
+            ) as cursor:
+                block = await cursor.fetchone()
+
+                if block is None:
+                    return False
+
+                active, blocked_at, duration, manually_unblocked = block
+
+                if manually_unblocked:
+                    return False
+
+                if duration is not None:
+                    blocked_at = datetime.fromisoformat(blocked_at)
+                    block_end_time = blocked_at + timedelta(seconds=duration)
+
+                    if datetime.now() > block_end_time:
+                        await db.execute(
+                            "UPDATE blocks SET active = FALSE WHERE domain_name = ?;",
+                            (domain_name,),
+                        )
+                        await db.commit()
+                        return False
+
+                return active
+
+    @classmethod
+    async def get_domain_info(cls, domain_name: str):
+        if await cls.is_domain_blocked(domain_name):
+            return None
+
+        async with aiosqlite.connect(cls.db_path) as db:
+            async with db.execute(
+                "SELECT ip_address, port FROM domains WHERE domain_name = ?;",
+                (domain_name,),
+            ) as cursor:
+                return await cursor.fetchone()

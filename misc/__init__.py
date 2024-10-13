@@ -1,24 +1,20 @@
 from fastapi import HTTPException, Request
 
 from .config import INIT_OWNER_PASSWORD, TIMEOUT_DURATION_MINUTES, USE_HTTPS
-from .server_database import ServerDatabase
+from .server_database import Database
 from .user_database import UserDatabase
-
-user_db = UserDatabase()
-server_db = ServerDatabase()
-server_db.TIMEOUT_DURATION_MINUTES = TIMEOUT_DURATION_MINUTES
-
-if not user_db.get_user("owner"):
-    user_db.add_user("owner", INIT_OWNER_PASSWORD)
 
 
 async def get_current_user(request: Request):
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    user = user_db.get_username_by_token(token)
-    
+    user = await UserDatabase.get_username_by_token(token)
+
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    
+
+    if UserDatabase.check_user_role(user, "user"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     return user

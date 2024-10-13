@@ -1,11 +1,22 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 
+from misc import Database, UserDatabase
 from routers import auth_router, html_response_router, servers_router
 
-app = FastAPI(title="Server hub", description="", version="0.0.1")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await Database.init_db()
+    await UserDatabase.init_db()
+    yield
+
+
+app = FastAPI(title="Server hub", description="", version="0.0.1", lifespan=lifespan)
 
 app.mount("/style", StaticFiles(directory="style"), name="style")
 app.mount("/html", StaticFiles(directory="html"), name="html")

@@ -1,10 +1,10 @@
 import secrets
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from misc import get_current_user, server_db
+from misc import get_current_user
 
 servers_router = APIRouter()
 
