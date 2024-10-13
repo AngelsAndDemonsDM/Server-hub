@@ -21,8 +21,7 @@ env.bak/
 venv.bak/
 
 # DB
-user.db
-servers.db
+dbs/*
 
 # User congig
 config.json
