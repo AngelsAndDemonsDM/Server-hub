@@ -1,10 +1,12 @@
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
 import aiosqlite
 import bcrypt
-import secrets
-from datetime import datetime, timezone, timedelta
 
-from misc import AccessRights
+from misc import INIT_OWNER_PASSWORD, AccessRights
+
 from .logs_db import LogsDatabase
 
 
@@ -106,7 +108,7 @@ class Database:
     async def _create_owner(cls):
         await cls.create_user(
             "owner",
-            "owner_password",  # FIXME это стоит заменить через .env для production
+            INIT_OWNER_PASSWORD,
             "owner",
             AccessRights(AccessRights.FULL_ACCESS),
         )
