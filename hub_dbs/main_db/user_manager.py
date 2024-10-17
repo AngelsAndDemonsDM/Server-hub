@@ -10,11 +10,18 @@ from misc import INIT_OWNER_PASSWORD, AccessRights
 
 from .bans_manager import BanManager
 from .database import Database
-from .errors import (BanError, InsufficientAccessRightsError,
-                     UserAlreadyExistsError)
+from .errors import BanError, InsufficientAccessRightsError, UserAlreadyExistsError
 
 
 class UserManager:
+    @classmethod
+    def _hash_token(cls, token: str) -> str:
+        return bcrypt.hashpw(token.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    @classmethod
+    def _verify_token(cls, token: str, token_hash: str) -> bool:
+        return bcrypt.checkpw(token.encode("utf-8"), token_hash.encode("utf-8"))
+
     @classmethod
     async def init_manager(cls):
         await cls.system_create_user(
@@ -26,23 +33,25 @@ class UserManager:
 
     @classmethod
     async def get_user_by_token(cls, token: str) -> Optional[str]:
-        """Возвращает username, связанный с токеном, если токен действителен и не истёк."""
         async with Database() as db:
             async with db.execute(
-                "SELECT username, expires_at FROM tokens WHERE token = ?;", (token,)
+                "SELECT username, token, expires_at FROM tokens;"
             ) as cursor:
-                user = await cursor.fetchone()
-                if user:
-                    username, expires_at = user
-                    if datetime.now(timezone.utc) < datetime.fromisoformat(expires_at):
-                        return username
+                tokens = await cursor.fetchall()
 
-                    else:
-                        await db.execute(
-                            "DELETE FROM tokens WHERE token = ?;", (token,)
-                        )
+                for user, token_hash, expires_at in tokens:
+                    if cls._verify_token(token, token_hash):
+                        if datetime.now(timezone.utc) < datetime.fromisoformat(
+                            expires_at
+                        ):
+                            return user
+                        else:
+                            await db.execute(
+                                "DELETE FROM tokens WHERE token = ?;", (token_hash,)
+                            )
+                            return None
 
-                return None
+        return None
 
     @classmethod
     async def get_user_permissions(cls, username: str) -> Optional[AccessRights]:
@@ -118,9 +127,6 @@ class UserManager:
         role: str = "user",
         access_rights: AccessRights = AccessRights(),
     ):
-        """
-        Создаёт нового пользователя. Обрабатывает уникальность username через SQL исключение.
-        """
         hashed_password = bcrypt.hashpw(
             password.encode("utf-8"), bcrypt.gensalt()
         ).decode("utf-8")
@@ -207,7 +213,7 @@ class UserManager:
     @classmethod
     async def login(cls, username: str, password: str) -> str:
         if await BanManager.is_banned(username, "user"):
-            raise BanError("This user are banned.")
+            raise BanError("This user is banned.")
 
         async with Database() as db:
             async with db.execute(
@@ -219,13 +225,14 @@ class UserManager:
                     password.encode("utf-8"), user[1].encode("utf-8")
                 ):
                     token = secrets.token_hex(32)
+                    token_hash = cls._hash_token(token)
                     expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
                     await db.execute(
                         """
                         INSERT INTO tokens (username, token, created_at, expires_at)
                         VALUES (?, ?, ?, ?);
                         """,
-                        (user[0], token, datetime.now(timezone.utc), expires_at),
+                        (user[0], token_hash, datetime.now(timezone.utc), expires_at),
                     )
 
                     LogsDatabase.log_action(
@@ -240,15 +247,14 @@ class UserManager:
 
     @classmethod
     async def logout(cls, token: str):
-        """Удаляет указанный токен, выполняя частичный logout и логирует пользователя, связанного с этим токеном."""
-        async with Database() as db:
-            username = await UserManager.get_user_by_token(token)
-            if username is None:
-                raise ValueError("Invalid token")
+        username = await cls.get_user_by_token(token)
+        if username is None:
+            raise ValueError("Invalid token")
 
+        async with Database() as db:
             await db.execute(
-                "DELETE FROM tokens WHERE token = ?;",
-                (token,),
+                "DELETE FROM tokens WHERE username = ?;",
+                (username,),
             )
 
             LogsDatabase.log_action(
@@ -260,12 +266,11 @@ class UserManager:
 
     @classmethod
     async def full_logout(cls, token: str):
-        """Удаляет все токены пользователя, проверяя, что токен принадлежит пользователю, выполняющему полный logout."""
-        async with Database() as db:
-            username = await UserManager.get_user_by_token(token)
-            if username is None:
-                raise ValueError("Invalid token")
+        username = await cls.get_user_by_token(token)
+        if username is None:
+            raise ValueError("Invalid token")
 
+        async with Database() as db:
             await db.execute(
                 "DELETE FROM tokens WHERE username = ?;",
                 (username,),

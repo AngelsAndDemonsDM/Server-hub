@@ -1,7 +1,7 @@
 import ipaddress
 import secrets
 from typing import Literal, Optional
-
+import bcrypt
 import aiosqlite
 
 from hub_dbs.logs_db import LogsDatabase
@@ -13,6 +13,14 @@ from .errors import BanError
 
 class ServerManager:
     StatusType = Literal["offline", "online", "maintenance"]
+
+    @classmethod
+    def _hash_token(cls, token: str) -> str:
+        return bcrypt.hashpw(token.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+    @classmethod
+    def _verify_token(cls, token: str, token_hash: str) -> bool:
+        return bcrypt.checkpw(token.encode("utf-8"), token_hash.encode("utf-8"))
 
     @classmethod
     async def add_server(
@@ -29,11 +37,8 @@ class ServerManager:
         tags: Optional[str] = None,
         additional_links: Optional[str] = None,
     ):
-        """Добавляет новый сервер в базу данных и заполняет его дополнительную информацию."""
-
         try:
             ipaddress.ip_address(ip_address)
-
         except ValueError:
             raise ValueError(f"Invalid IP address: {ip_address}")
 
@@ -87,7 +92,6 @@ class ServerManager:
 
     @classmethod
     async def delete_server(cls, username: str, dns_name: str):
-        """Удаляет сервер из базы данных."""
         async with Database() as db:
             await db.execute(
                 """
@@ -118,7 +122,6 @@ class ServerManager:
         additional_links: Optional[str] = None,
         max_players: Optional[int] = None,
     ):
-        """Обновляет информацию о сервере (название, описание, теги, ссылки, максимальное число игроков)."""
         async with Database() as db:
             if server_name:
                 await db.execute(
@@ -151,7 +154,6 @@ class ServerManager:
 
     @classmethod
     async def update_server_players(cls, dns_name: str, current_players: int):
-        """Обновляет текущее количество игроков на сервере."""
         async with Database() as db:
             await db.execute(
                 """
@@ -159,12 +161,14 @@ class ServerManager:
                 SET current_players = ?
                 WHERE dns_name = ?;
                 """,
-                (current_players, dns_name),
+                (
+                    current_players,
+                    dns_name,
+                ),
             )
 
     @classmethod
     async def update_server_status(cls, dns_name: str, status: StatusType):
-        """Обновляет статус сервера (например, онлайн или оффлайн)."""
         async with Database() as db:
             await db.execute(
                 """
@@ -172,12 +176,14 @@ class ServerManager:
                 SET status = ?
                 WHERE dns_name = ?;
                 """,
-                (status, dns_name),
+                (
+                    status,
+                    dns_name,
+                ),
             )
 
     @classmethod
     async def generate_api_token(cls, username: str, dns_name: str) -> str:
-        """Создаёт и возвращает API токен для сервера, если пользователь является владельцем сервера."""
         async with Database() as db:
             async with db.execute(
                 """
@@ -192,6 +198,7 @@ class ServerManager:
                     )
 
         token = secrets.token_hex(32)
+        token_hash = cls._hash_token(token)
 
         async with Database() as db:
             await db.execute(
@@ -199,7 +206,7 @@ class ServerManager:
                 INSERT INTO api_tokens (token, dns_name)
                 VALUES (?, ?);
                 """,
-                (token, dns_name),
+                (token_hash, dns_name),
             )
 
             LogsDatabase.log_action(
@@ -213,19 +220,17 @@ class ServerManager:
 
     @classmethod
     async def revoke_api_token(cls, username: str, token: str):
-        """Удаляет указанный API токен, если пользователь является владельцем сервера."""
         async with Database() as db:
             async with db.execute(
                 """
-                SELECT dns_name FROM api_tokens WHERE token = ?;
+                SELECT token, dns_name FROM api_tokens WHERE dns_name = ?;
                 """,
                 (token,),
             ) as cursor:
                 row = await cursor.fetchone()
                 if not row:
                     raise ValueError(f"Token '{token}' not found.")
-
-                dns_name = row[0]
+                token_hash, dns_name = row
 
             async with db.execute(
                 """
@@ -239,11 +244,14 @@ class ServerManager:
                         f"User '{username}' is not the owner of the server '{dns_name}'."
                     )
 
+            if not cls._verify_token(token, token_hash):
+                raise ValueError("Invalid token provided.")
+
             await db.execute(
                 """
                 DELETE FROM api_tokens WHERE token = ?;
                 """,
-                (token,),
+                (token_hash,),
             )
 
             LogsDatabase.log_action(
@@ -255,7 +263,6 @@ class ServerManager:
 
     @classmethod
     async def get_api_token(cls, dns_name: str) -> Optional[str]:
-        """Возвращает API токен для указанного сервера, если пользователь является владельцем сервера."""
         async with Database() as db:
             async with db.execute(
                 "SELECT token FROM api_tokens WHERE dns_name = ?;",

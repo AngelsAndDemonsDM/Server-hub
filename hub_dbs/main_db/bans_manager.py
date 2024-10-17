@@ -17,7 +17,6 @@ class BanManager:
         reason: str,
         duration: Optional[timedelta] = None,
     ):
-        """Системный бан, используется администраторами для добавления бана."""
         await cls._add_ban(
             entity_name, entity_type, reason, "system", duration, system=True
         )
@@ -31,7 +30,6 @@ class BanManager:
         reason: str,
         duration: Optional[timedelta] = None,
     ):
-        """Пользовательский бан, где пользователь может банить, например, спамеров."""
         await cls._add_ban(
             entity_name,
             entity_type,
@@ -51,7 +49,6 @@ class BanManager:
         duration: Optional[timedelta],
         system: bool,
     ):
-        """Внутренний метод добавления бана с разделением по типу: системный или пользовательский."""
         unblock_at = datetime.now(timezone.utc) + duration if duration else None
 
         async with Database() as db:
@@ -89,14 +86,12 @@ class BanManager:
     async def system_remove_ban(
         cls, entity_name: str, entity_type: Literal["user", "ip"]
     ):
-        """Системный метод для снятия бана."""
         await cls._remove_ban(entity_name, entity_type, system=True)
 
     @classmethod
     async def user_remove_ban(
         cls, username: str, entity_name: str, entity_type: Literal["user", "ip"]
     ):
-        """Пользовательский метод для снятия бана."""
         await cls._remove_ban(entity_name, entity_type, system=False, username=username)
 
     @classmethod
@@ -107,7 +102,6 @@ class BanManager:
         system: bool,
         username: Optional[str] = None,
     ):
-        """Внутренний метод снятия бана с разделением по типу: системный или пользовательский."""
         async with Database() as db:
             await db.execute(
                 """
@@ -136,7 +130,6 @@ class BanManager:
     async def is_banned(
         cls, entity_name: str, entity_type: Literal["user", "ip"]
     ) -> bool:
-        """Проверяет, есть ли активный бан для указанного пользователя или IP."""
         async with Database() as db:
             async with db.execute(
                 """

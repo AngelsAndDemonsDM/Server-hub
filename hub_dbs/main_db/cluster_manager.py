@@ -10,7 +10,6 @@ class ClusterManager:
     async def create_cluster(
         cls, cluster_dns_name: str, username: str, description: Optional[str] = None
     ):
-        """Создает новый кластер серверов."""
         async with Database() as db:
             await db.execute(
                 """
@@ -31,7 +30,6 @@ class ClusterManager:
     async def add_server_to_cluster(
         cls, cluster_dns_name: str, dns_name: str, username: str
     ):
-        """Добавляет сервер в кластер."""
         async with Database() as db:
             await db.execute(
                 """
@@ -52,7 +50,6 @@ class ClusterManager:
     async def remove_server_from_cluster(
         cls, cluster_dns_name: str, dns_name: str, username: str
     ):
-        """Удаляет сервер из кластера."""
         async with Database() as db:
             await db.execute(
                 """
@@ -71,7 +68,6 @@ class ClusterManager:
 
     @classmethod
     async def delete_cluster(cls, cluster_dns_name: str, username: str):
-        """Удаляет кластер и все его связи с серверами."""
         async with Database() as db:
             await db.execute(
                 """
@@ -95,7 +91,6 @@ class ClusterManager:
 
     @classmethod
     async def get_cluster_info(cls, cluster_dns_name: str) -> Optional[dict]:
-        """Возвращает информацию о кластере и список серверов, входящих в него."""
         async with Database() as db:
             async with db.execute(
                 """
@@ -130,7 +125,6 @@ class ClusterManager:
 
     @classmethod
     async def get_least_loaded_server(cls, cluster_dns_name: str) -> Optional[dict]:
-        """Возвращает сервер с наименьшим количеством активных игроков в кластере, при этом сервер должен быть онлайн."""
         async with Database() as db:
             async with db.execute(
                 """
