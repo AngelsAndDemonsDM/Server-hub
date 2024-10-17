@@ -8,7 +8,7 @@ from .database import Database
 
 class BanManager:
     EntityType = Literal["user", "ip"]
-    
+
     @classmethod
     async def system_add_ban(
         cls,

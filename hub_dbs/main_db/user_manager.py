@@ -8,11 +8,12 @@ import bcrypt
 from hub_dbs.logs_db import LogsDatabase
 from misc import INIT_OWNER_PASSWORD, AccessRights
 
+from .bans_manager import BanManager
 from .database import Database
-from .errors import InsufficientAccessRightsError, UserAlreadyExistsError
+from .errors import (BanError, InsufficientAccessRightsError,
+                     UserAlreadyExistsError)
 
 
-# TODO: Баны, проверки
 class UserManager:
     @classmethod
     async def init_manager(cls):
@@ -25,8 +26,7 @@ class UserManager:
 
     @classmethod
     async def get_user_by_token(cls, token: str) -> Optional[str]:
-        """Возвращает username, связанный с токеном, если токен действителен и не истёк.
-        """
+        """Возвращает username, связанный с токеном, если токен действителен и не истёк."""
         async with Database() as db:
             async with db.execute(
                 "SELECT username, expires_at FROM tokens WHERE token = ?;", (token,)
@@ -206,6 +206,9 @@ class UserManager:
 
     @classmethod
     async def login(cls, username: str, password: str) -> str:
+        if await BanManager.is_banned(username, "user"):
+            raise BanError("This user are banned.")
+
         async with Database() as db:
             async with db.execute(
                 "SELECT username, hashed_password FROM users WHERE username = ?",

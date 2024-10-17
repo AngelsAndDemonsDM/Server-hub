@@ -54,6 +54,16 @@ class Database:
                 );
             """)
 
+            # Таблица для API токенов
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS api_tokens (
+                    token_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token TEXT NOT NULL,
+                    dns_name TEXT NOT NULL,
+                    FOREIGN KEY (dns_name) REFERENCES servers_connect(dns_name) ON DELETE CASCADE
+                );
+            """)
+
             # Блок пользователей. Роли и права, токены
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (

@@ -46,11 +46,11 @@ class RoleManager:
                     description=f"System created role '{role_name}' with permissions: {str(permissions)}",
                     importance_level="info",
                 )
-        
+
         except aiosqlite.IntegrityError as err:
             if "UNIQUE constraint failed: roles.role_name" in str(err):
                 pass
-            
+
             else:
                 raise
 
@@ -77,7 +77,7 @@ class RoleManager:
         except aiosqlite.IntegrityError as err:
             if "UNIQUE constraint failed: roles.role_name" in str(err):
                 raise RoleAlreadyExistsError(f"Role '{role_name}' already exists.")
-            
+
             else:
                 raise
 
@@ -96,10 +96,12 @@ class RoleManager:
                 if new_role_name:
                     async with db.execute(
                         "SELECT role_name FROM roles WHERE role_name = ?",
-                        (new_role_name,)
+                        (new_role_name,),
                     ) as cursor:
                         if await cursor.fetchone():
-                            raise RoleAlreadyExistsError(f"Role '{new_role_name}' already exists.")
+                            raise RoleAlreadyExistsError(
+                                f"Role '{new_role_name}' already exists."
+                            )
 
                 if new_role_name:
                     await db.execute(
@@ -134,7 +136,7 @@ class RoleManager:
         except aiosqlite.IntegrityError as err:
             if "UNIQUE constraint failed: roles.role_name" in str(err):
                 raise RoleAlreadyExistsError(f"Role '{new_role_name}' already exists.")
-            
+
             else:
                 raise
 

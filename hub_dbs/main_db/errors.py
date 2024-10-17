@@ -8,3 +8,7 @@ class UserAlreadyExistsError(Exception):
 
 class InsufficientAccessRightsError(Exception):
     pass
+
+
+class BanError(Exception):
+    pass

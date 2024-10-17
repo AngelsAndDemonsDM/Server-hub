@@ -1,13 +1,14 @@
 from typing import Optional
 
+from hub_dbs.logs_db import LogsDatabase
+
 from .database import Database
 
 
-# TODO: Баны, проверки
 class ClusterManager:
     @classmethod
     async def create_cluster(
-        cls, cluster_dns_name: str, description: Optional[str] = None
+        cls, cluster_dns_name: str, username: str, description: Optional[str] = None
     ):
         """Создает новый кластер серверов."""
         async with Database() as db:
@@ -19,8 +20,17 @@ class ClusterManager:
                 (cluster_dns_name, description),
             )
 
+        LogsDatabase.log_action(
+            username=username,
+            server_name=None,
+            description=f"Cluster '{cluster_dns_name}' created by '{username}'",
+            importance_level="info",
+        )
+
     @classmethod
-    async def add_server_to_cluster(cls, cluster_dns_name: str, dns_name: str):
+    async def add_server_to_cluster(
+        cls, cluster_dns_name: str, dns_name: str, username: str
+    ):
         """Добавляет сервер в кластер."""
         async with Database() as db:
             await db.execute(
@@ -31,8 +41,17 @@ class ClusterManager:
                 (cluster_dns_name, dns_name),
             )
 
+        LogsDatabase.log_action(
+            username=username,
+            server_name=dns_name,
+            description=f"Server '{dns_name}' added to cluster '{cluster_dns_name}' by '{username}'",
+            importance_level="info",
+        )
+
     @classmethod
-    async def remove_server_from_cluster(cls, cluster_dns_name: str, dns_name: str):
+    async def remove_server_from_cluster(
+        cls, cluster_dns_name: str, dns_name: str, username: str
+    ):
         """Удаляет сервер из кластера."""
         async with Database() as db:
             await db.execute(
@@ -42,6 +61,37 @@ class ClusterManager:
                 """,
                 (cluster_dns_name, dns_name),
             )
+
+        LogsDatabase.log_action(
+            username=username,
+            server_name=dns_name,
+            description=f"Server '{dns_name}' removed from cluster '{cluster_dns_name}' by '{username}'",
+            importance_level="info",
+        )
+
+    @classmethod
+    async def delete_cluster(cls, cluster_dns_name: str, username: str):
+        """Удаляет кластер и все его связи с серверами."""
+        async with Database() as db:
+            await db.execute(
+                """
+                DELETE FROM server_clusters WHERE cluster_dns_name = ?;
+                """,
+                (cluster_dns_name,),
+            )
+            await db.execute(
+                """
+                DELETE FROM cluster_servers_unit WHERE cluster_dns_name = ?;
+                """,
+                (cluster_dns_name,),
+            )
+
+        LogsDatabase.log_action(
+            username=username,
+            server_name=None,
+            description=f"Cluster '{cluster_dns_name}' deleted by '{username}'",
+            importance_level="info",
+        )
 
     @classmethod
     async def get_cluster_info(cls, cluster_dns_name: str) -> Optional[dict]:
@@ -77,23 +127,6 @@ class ClusterManager:
                 "description": cluster_info[1],
                 "servers": server_list,
             }
-
-    @classmethod
-    async def delete_cluster(cls, cluster_dns_name: str):
-        """Удаляет кластер и все его связи с серверами."""
-        async with Database() as db:
-            await db.execute(
-                """
-                DELETE FROM server_clusters WHERE cluster_dns_name = ?;
-                """,
-                (cluster_dns_name,),
-            )
-            await db.execute(
-                """
-                DELETE FROM cluster_servers_unit WHERE cluster_dns_name = ?;
-                """,
-                (cluster_dns_name,),
-            )
 
     @classmethod
     async def get_least_loaded_server(cls, cluster_dns_name: str) -> Optional[dict]:
