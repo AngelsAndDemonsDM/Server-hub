@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
     await RoleManager.init_manager()
     await UserManager.init_manager()
     yield
+    return
 
 
 app = FastAPI(lifespan=lifespan)

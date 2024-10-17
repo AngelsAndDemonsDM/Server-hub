@@ -95,15 +95,14 @@ class UserManager:
             async with Database() as db:
                 await db.execute(
                     """
-                    INSERT INTO users (username, hashed_password, global_access, role, created_at)
-                    VALUES (?, ?, ?, ?, ?);
+                    INSERT INTO users (username, hashed_password, global_access, role)
+                    VALUES (?, ?, ?, ?);
                     """,
                     (
                         username,
                         hashed_password,
                         int(access_rights),
                         role,
-                        datetime.now(timezone.utc),
                     ),
                 )
 
@@ -136,15 +135,14 @@ class UserManager:
             async with Database() as db:
                 await db.execute(
                     """
-                    INSERT INTO users (username, hashed_password, global_access, role, created_at)
-                    VALUES (?, ?, ?, ?, ?);
+                    INSERT INTO users (username, hashed_password, global_access, role)
+                    VALUES (?, ?, ?, ?);
                     """,
                     (
                         username,
                         hashed_password,
                         int(access_rights),
                         role,
-                        datetime.now(timezone.utc),
                     ),
                 )
 

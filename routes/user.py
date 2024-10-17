@@ -1,18 +1,18 @@
 from typing import Optional
 
-from fastapi import APIRouter, Body, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from hub_dbs.main_db import BanError, UserAlreadyExistsError, UserManager
 
-from .base import validate_authorization
+from .base import UserNamePassword, validate_authorization
 
 user_router = APIRouter(prefix="/api_v1/user")
 
 
 @user_router.post("/register")
-async def register(username: str = Body(...), password: str = Body(...)):
+async def register(user: UserNamePassword):
     try:
-        token = await UserManager.register(username, password)
+        token = await UserManager.register(user.name, user.password)
 
     except UserAlreadyExistsError as err:
         raise HTTPException(400, str(err))
@@ -24,9 +24,9 @@ async def register(username: str = Body(...), password: str = Body(...)):
 
 
 @user_router.post("/login")
-async def login(username: str = Body(...), password: str = Body(...)):
+async def login(user: UserNamePassword):
     try:
-        token = await UserManager.login(username, password)
+        token = await UserManager.login(user.name, user.password)
 
     except BanError as err:
         raise HTTPException(403, str(err))

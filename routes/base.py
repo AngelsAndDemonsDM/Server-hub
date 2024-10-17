@@ -1,6 +1,12 @@
 from typing import Optional
 
 from fastapi import HTTPException
+from pydantic import BaseModel
+
+
+class UserNamePassword(BaseModel):
+    name: str
+    password: str
 
 
 def validate_authorization(authorization: Optional[str]) -> str:
