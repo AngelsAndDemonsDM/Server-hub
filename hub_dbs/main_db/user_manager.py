@@ -10,7 +10,8 @@ from misc import INIT_OWNER_PASSWORD, AccessRights
 
 from .bans_manager import BanManager
 from .database import Database
-from .errors import BanError, InsufficientAccessRightsError, UserAlreadyExistsError
+from .errors import (BanError, InsufficientAccessRightsError,
+                     UserAlreadyExistsError)
 
 
 class UserManager:
