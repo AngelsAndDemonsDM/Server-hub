@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from hub_dbs.main_db import ServerManager
 
-info_router = APIRouter(prefix='/api_v1/')
+info_router = APIRouter(prefix="/api_v1")
 
 
 @info_router.get("/")
