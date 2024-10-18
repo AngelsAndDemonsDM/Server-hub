@@ -1,20 +1,29 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 import uvicorn
 from fastapi import FastAPI
-from fastapi.security import OAuth2PasswordBearer
-from fastapi.staticfiles import StaticFiles
 
-from routers import auth_router, html_response_router, servers_router
+from hub_dbs import Database, LogsDatabase, RoleManager, UserManager
+from routes import connect_router, info_router, server_router, user_router
 
-app = FastAPI(title="Server hub", description="", version="0.0.1")
 
-app.mount("/style", StaticFiles(directory="style"), name="style")
-app.mount("/html", StaticFiles(directory="html"), name="html")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Path("dbs").mkdir(parents=True, exist_ok=True)
+    await LogsDatabase.init_db()
+    await Database.init_tables()
+    await RoleManager.init_manager()
+    await UserManager.init_manager()
+    yield
+    return
 
-app.include_router(auth_router)
-app.include_router(html_response_router)
-app.include_router(servers_router)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+app = FastAPI(lifespan=lifespan, title="Server hub api")
+app.include_router(connect_router)
+app.include_router(info_router)
+app.include_router(server_router)
+app.include_router(user_router)
 
 if __name__ == "__main__":
     uvicorn.run(app)
