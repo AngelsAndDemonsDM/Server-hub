@@ -67,6 +67,14 @@ class BanManager:
                 ),
             )
 
+            if entity_type == "ip":
+                await db.execute(
+                    """
+                    DELETE FROM servers_connect WHERE ip_address = ?;
+                    """,
+                    (entity_name,),
+                )
+
             if system:
                 LogsDatabase.log_system_action(
                     server_name=None,

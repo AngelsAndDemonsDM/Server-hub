@@ -49,6 +49,7 @@ async def logout(
     try:
         if full_logout:
             await UserManager.full_logout(token)
+        
         else:
             await UserManager.logout(token)
 

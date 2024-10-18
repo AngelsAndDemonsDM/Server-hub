@@ -24,6 +24,58 @@ class ServerManager:
         return bcrypt.checkpw(token.encode("utf-8"), token_hash.encode("utf-8"))
 
     @classmethod
+    async def get_all_active_servers(cls) -> list[dict]:
+        active_servers = []
+        
+        async with Database() as db:
+            async with db.execute(
+                """
+                SELECT server_name, dns_name, ip_address, port, current_players, max_players
+                FROM servers_connect
+                WHERE status = 'online';
+                """
+            ) as cursor:
+                servers = await cursor.fetchall()
+                for server in servers:
+                    active_servers.append({
+                        "server_name": server[0],
+                        "dns_name": server[1],
+                        "ip_address": server[2],
+                        "port": server[3],
+                        "current_players": server[4],
+                        "max_players": server[5],
+                    })
+
+        return active_servers
+
+    @classmethod
+    async def get_server_info(cls, dns_name: str) -> Optional[dict]:
+        async with Database() as db:
+            async with db.execute(
+                """
+                SELECT server_name, ip_address, port, status, max_players, current_players
+                FROM servers_connect
+                WHERE dns_name = ?;
+                """,
+                (dns_name,),
+            ) as cursor:
+                server_row = await cursor.fetchone()
+                
+            if not server_row:
+                return None
+            
+            server_info = {
+                "server_name": server_row[0],
+                "ip_address": server_row[1],
+                "port": server_row[2],
+                "status": server_row[3],
+                "max_players": server_row[4],
+                "current_players": server_row[5],
+            }
+
+        return server_info
+
+    @classmethod
     async def add_server(
         cls,
         username: str,
