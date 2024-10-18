@@ -1,12 +1,12 @@
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 import aiosqlite
 import bcrypt
 
 from hub_dbs.logs_db import LogsDatabase
-from misc import INIT_OWNER_PASSWORD, AccessRights
+from misc import INIT_OWNER_PASSWORD, TOKEN_EXPIRES_TIME, AccessRights
 
 from .bans_manager import BanManager
 from .database import Database
@@ -33,7 +33,10 @@ class UserManager:
         )
 
     @classmethod
-    async def get_user_by_token(cls, token: str) -> Optional[str]:
+    async def get_user_by_token(cls, token: Optional[str]) -> Optional[str]:
+        if token is None:
+            return None
+        
         async with Database() as db:
             async with db.execute(
                 "SELECT username, token, expires_at FROM tokens;"
@@ -46,6 +49,7 @@ class UserManager:
                             expires_at
                         ):
                             return user
+                        
                         else:
                             await db.execute(
                                 "DELETE FROM tokens WHERE token = ?;", (token_hash,)
@@ -225,7 +229,7 @@ class UserManager:
                 ):
                     token = secrets.token_hex(32)
                     token_hash = cls._hash_token(token)
-                    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+                    expires_at = datetime.now(timezone.utc) + TOKEN_EXPIRES_TIME
                     await db.execute(
                         """
                         INSERT INTO tokens (username, token, created_at, expires_at)
@@ -245,11 +249,7 @@ class UserManager:
                 raise ValueError("Invalid username or password")
 
     @classmethod
-    async def logout(cls, token: str):
-        username = await cls.get_user_by_token(token)
-        if username is None:
-            raise ValueError("Invalid token")
-
+    async def logout(cls, username: str):
         async with Database() as db:
             await db.execute(
                 "DELETE FROM tokens WHERE username = ?;",
@@ -259,25 +259,6 @@ class UserManager:
             LogsDatabase.log_action(
                 username=username,
                 server_name=None,
-                description=f"User '{username}' logged out (token '{token}' removed)",
-                importance_level="info",
-            )
-
-    @classmethod
-    async def full_logout(cls, token: str):
-        username = await cls.get_user_by_token(token)
-        if username is None:
-            raise ValueError("Invalid token")
-
-        async with Database() as db:
-            await db.execute(
-                "DELETE FROM tokens WHERE username = ?;",
-                (username,),
-            )
-
-            LogsDatabase.log_action(
-                username=username,
-                server_name=None,
-                description=f"User '{username}' logged out completely (all tokens removed)",
+                description=f"User '{username}' logged out",
                 importance_level="info",
             )

@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from hub_dbs.main_db import BanError, UserAlreadyExistsError, UserManager
 
-from .base import UserNamePassword, validate_auth_token
+from .base import UserNamePassword, auth_user
 
 user_router = APIRouter(prefix="/api_v1/user")
 
 
-@user_router.post("/register")
+@user_router.post("/register", tags=["user api"])
 async def register(user: UserNamePassword):
     try:
         token = await UserManager.register(user.name, user.password)
@@ -21,7 +21,7 @@ async def register(user: UserNamePassword):
     return {"message": "Register successful", "token": token}
 
 
-@user_router.post("/login")
+@user_router.post("/login", tags=["user api"])
 async def login(user: UserNamePassword):
     try:
         token = await UserManager.login(user.name, user.password)
@@ -38,19 +38,7 @@ async def login(user: UserNamePassword):
     return {"message": "Login successful", "token": token}
 
 
-@user_router.post("/logout")
-async def logout(full_logout: bool = False, token: str = Depends(validate_auth_token)):
-    try:
-        if full_logout:
-            await UserManager.full_logout(token)
-
-        else:
-            await UserManager.logout(token)
-
-    except ValueError as err:
-        raise HTTPException(401, str(err))
-
-    except Exception as err:
-        raise HTTPException(500, str(err))
-
+@user_router.post("/logout", tags=["user api"])
+async def logout(user_name: str = Depends(auth_user)):
+    await UserManager.logout(user_name)
     return {"message": "Logout successful"}

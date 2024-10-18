@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
     return
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Server hub api")
 app.include_router(connect_router)
 app.include_router(info_router)
 app.include_router(server_router)

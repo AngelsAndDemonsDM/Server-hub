@@ -1,7 +1,7 @@
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
 
-from hub_dbs.main_db import ServerManager
+from hub_dbs.main_db import ServerManager, UserManager
 
 
 class UserNamePassword(BaseModel):
@@ -9,14 +9,18 @@ class UserNamePassword(BaseModel):
     password: str
 
 
-def validate_auth_token(authorization: str = Header(...)) -> str:
+async def auth_user(authorization: str = Header(...)) -> str:
     if not authorization:
         raise HTTPException(status_code=401, detail="Authorization header missing")
 
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid token format")
 
-    return authorization[len("Bearer ") :]
+    user_name = await UserManager.get_user_by_token(authorization[len("Bearer ") :])
+    if user_name is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return user_name
 
 
 async def auth_server(
