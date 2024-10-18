@@ -1,10 +1,8 @@
-from typing import Optional
-
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from hub_dbs.main_db import BanError, UserAlreadyExistsError, UserManager
 
-from .base import UserNamePassword, validate_authorization
+from .base import UserNamePassword, validate_auth_token
 
 user_router = APIRouter(prefix="/api_v1/user")
 
@@ -41,15 +39,11 @@ async def login(user: UserNamePassword):
 
 
 @user_router.post("/logout")
-async def logout(
-    authorization: Optional[str] = Header(None), full_logout: bool = False
-):
-    token = validate_authorization(authorization)
-
+async def logout(full_logout: bool = False, token: str = Depends(validate_auth_token)):
     try:
         if full_logout:
             await UserManager.full_logout(token)
-        
+
         else:
             await UserManager.logout(token)
 

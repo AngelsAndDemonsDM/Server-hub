@@ -20,7 +20,7 @@ class ServerManager:
         return bcrypt.hashpw(token.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     @classmethod
-    def _verify_token(cls, token: str, token_hash: str) -> bool:
+    def verify_token(cls, token: str, token_hash: str) -> bool:
         return bcrypt.checkpw(token.encode("utf-8"), token_hash.encode("utf-8"))
 
     @classmethod
@@ -297,7 +297,7 @@ class ServerManager:
                         f"User '{username}' is not the owner of the server '{dns_name}'."
                     )
 
-            if not cls._verify_token(token, token_hash):
+            if not cls.verify_token(token, token_hash):
                 raise ValueError("Invalid token provided.")
 
             await db.execute(

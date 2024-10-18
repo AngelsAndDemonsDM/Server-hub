@@ -5,7 +5,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from hub_dbs import Database, LogsDatabase, RoleManager, UserManager
-from routes import connect_router, info_router, user_router
+from routes import connect_router, info_router, server_router, user_router
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 app.include_router(connect_router)
 app.include_router(info_router)
+app.include_router(server_router)
 app.include_router(user_router)
 
 if __name__ == "__main__":
